@@ -40,8 +40,20 @@ def busy_table(orders: pd.DataFrame, shop: str | None = None) -> pd.DataFrame:
     - `.reindex(index=DAY_NAMES, columns=OPEN_HOURS, fill_value=0)` puts every
       day and hour in order, even ones with no orders.
     """
-    # TODO: your code here
-    pass
+    rows = orders if shop is None else orders.loc[orders["shop"] == shop]
+    rows = rows.copy()
+    rows["day"] = rows["timestamp"].dt.dayofweek.map(
+        dict(enumerate(DAY_NAMES))
+    )
+    rows["hour"] = rows["timestamp"].dt.hour
+    table = rows.pivot_table(
+        index="day",
+        columns="hour",
+        values="order_id",
+        aggfunc="count",
+        fill_value=0,
+    )
+    return table.reindex(index=DAY_NAMES, columns=OPEN_HOURS, fill_value=0)
 
 
 def reason_table(visits: pd.DataFrame, shop: str | None = None) -> pd.DataFrame:
@@ -52,8 +64,17 @@ def reason_table(visits: pd.DataFrame, shop: str | None = None) -> pd.DataFrame:
     Built like busy_table, with `reason` instead of the day and `hour` truncated
     to a whole number (`.astype(int)`).
     """
-    # TODO: your code here
-    pass
+    rows = visits if shop is None else visits.loc[visits["shop"] == shop]
+    rows = rows.copy()
+    rows["hour"] = rows["hour"].astype(int)
+    table = rows.pivot_table(
+        index="reason",
+        columns="hour",
+        values="order_id",
+        aggfunc="count",
+        fill_value=0,
+    )
+    return table.reindex(index=REASONS, columns=OPEN_HOURS, fill_value=0)
 
 
 def monthly_sales(orders: pd.DataFrame, by: str = "shop") -> pd.DataFrame:
@@ -70,8 +91,14 @@ def monthly_sales(orders: pd.DataFrame, by: str = "shop") -> pd.DataFrame:
     - `groupby(["month", by])` and `.agg(sales=("total", "sum"),
       orders=("order_id", "count"))`, then `reset_index()`.
     """
-    # TODO: your code here
-    pass
+    rows = orders.copy()
+    rows["month"] = rows["timestamp"].dt.strftime("%Y-%m")
+    table = (
+        rows.groupby(["month", by], as_index=False)
+        .agg(sales=("total", "sum"), orders=("order_id", "count"))
+    )
+    table["sales"] = table["sales"].round(2)
+    return table.sort_values(["month", by]).reset_index(drop=True)
 
 
 def members_by_zip(customers: pd.DataFrame) -> pd.DataFrame:
@@ -80,8 +107,15 @@ def members_by_zip(customers: pd.DataFrame) -> pd.DataFrame:
     `customers` comes from add_zips (it has `home_zip`). Members whose home is in
     no ZIP are left out.
     """
-    # TODO: your code here
-    pass
+    table = (
+        customers.dropna(subset=["home_zip"])
+        .groupby("home_zip")
+        .size()
+        .rename("members")
+        .reset_index()
+        .rename(columns={"home_zip": "zip"})
+    )
+    return table.sort_values("members", ascending=False).reset_index(drop=True)
 
 
 def add_anchor_zip(visits: pd.DataFrame) -> pd.DataFrame:
@@ -95,8 +129,19 @@ def add_anchor_zip(visits: pd.DataFrame) -> pd.DataFrame:
     `np.select` with those two conditions and `default=None` builds it in one
     line. A new DataFrame; `visits` is not changed.
     """
-    # TODO: your code here
-    pass
+    result = visits.copy()
+    result["anchor_zip"] = np.select(
+        [
+            result["reason"].isin(WORKDAY_REASONS),
+            result["reason"].eq(NEAR_HOME),
+        ],
+        [
+            result["work_zip"],
+            result["home_zip"],
+        ],
+        default=None,
+    )
+    return result
 
 
 def demand_by_zip(visits: pd.DataFrame) -> pd.DataFrame:
@@ -106,8 +151,15 @@ def demand_by_zip(visits: pd.DataFrame) -> pd.DataFrame:
     Calls add_anchor_zip, then counts `anchor_zip` like members_by_zip counts
     `home_zip`.
     """
-    # TODO: your code here
-    pass
+    anchored = add_anchor_zip(visits).dropna(subset=["anchor_zip"])
+    table = (
+        anchored.groupby("anchor_zip")
+        .size()
+        .rename("visits")
+        .reset_index()
+        .rename(columns={"anchor_zip": "zip"})
+    )
+    return table.sort_values("visits", ascending=False).reset_index(drop=True)
 
 
 def site_scores(demand: pd.DataFrame, zips: gpd.GeoDataFrame,

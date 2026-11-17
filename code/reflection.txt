@@ -1,12 +1,47 @@
-Write your reflection here.
+My approach was to build the pipeline in stages: load and join the data, add
+geographic features, classify each visit, aggregate the results, and then display
+them in a dashboard. The spatial join taught me to distinguish coordinates from
+map geometry: point-in-polygon logic assigned Home and Work coordinates to a ZIP
+polygon, while adding ZIPs to a DataFrame did not change the original data. I used
+a coordinate reference system and a meters projection before taking polygon
+centroids, because centroid and haversine calculations need a projection in which
+distance has consistent units rather than raw degrees.
 
-See reflection.md for what makes a good reflection — be specific, use the
-terminology from this assignment (heatmap, violin plot, interactive chart, hover,
-Folium marker, popup, choropleth, GeoJSON, polygon, spatial join,
-point-in-polygon, coordinate reference system, projection, centroid, haversine
-distance, feature engineering, rule-based classification, validation set,
-agreement, anchor, site score), and make it actionable.
+The time-only baseline gave me a useful starting point, but it could not account
+for place. I used feature engineering to add d_home, d_work, and detour, then
+improved the rule-based classification with named constants for near-work,
+near-home, and commute detours. The most difficult lesson was ordering the rules:
+an evening commute that is also near Work must be classified before the general
+work-break rule. Local tests were especially useful for catching an incorrect
+condition-to-label mapping and for verifying that all five reasons appear. Live
+survey validation could not be run because a CENT API key was not available, so I
+could not honestly verify agreement against the hidden validation set or tune by
+the score table.
 
-Two questions to answer along the way:
-- Why does the "where members live" map point to the wrong place?
-- What can't this data tell you? (Think about the members who live in Clay.)
+The tables and charts showed how pandas structure feeds visualization. pivot_table
+and reindex made complete heatmaps with zero-filled hours and days.
+groupby/agg produced monthly sales and ZIP demand, and np.select created anchor
+ZIPs for workday and near-home visits. In the dashboard, a seaborn heatmap showed
+visit density, a violin plot showed spending distributions, a Plotly trend
+supported hover inspection, Folium markers showed shop locations with popups and
+revenue-scaled radii, and choropleths showed GeoJSON polygons by member count,
+demand, or site score.
+
+The "where members live" map points to Syracuse ZIPs rather than every member's
+true residence. That is why it can look as though it is pointing to the wrong
+place: only members whose Home coordinates fall inside one of the supplied
+Syracuse ZIP polygons are shown. Members living in Clay provide an important
+example. Their coordinates are outside this ZIP set, so they are left out of
+members_by_zip and make no member-count or demand contribution. The map therefore
+shows where demand is observable in the included ZIPs, not every customer's full
+location or population.
+
+This data cannot tell us the reason for a future order, the age or household
+income of a member, travel time by road, foot traffic, rent, parking, opening
+hours, or whether customers are willing to cross from another area. It also
+cannot tell us Clay demand in the absence of a Clay ZIP polygon or an unobserved
+survey response in the validation set. The site score should be treated as a
+decision aid, not a complete market analysis. Next time I would gather ZIP
+coverage for Clay, survey a larger representative sample, compare road distance
+and travel time with haversine distance, and test alternative thresholds before
+deploying the dashboard.

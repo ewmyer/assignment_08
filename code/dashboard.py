@@ -75,8 +75,39 @@ if busy.open:
 #       with st.pyplot (and close).
 if why.open:
     with why:
-        # TODO: steps 4a-4d
-        st.info("Why they come: your tab goes here.")
+        choice = st.selectbox(
+            "Shop",
+            ["All shops"] + our_shops,
+            key="why_shop",
+        )
+        shown = visits if choice == "All shops" else visits.loc[
+            visits["shop"] == choice
+        ]
+        counts = shown["reason"].value_counts().reindex(REASONS, fill_value=0)
+        columns = st.columns(len(REASONS))
+        for column, reason in zip(columns, REASONS):
+            column.metric(reason.title(), int(counts[reason]))
+
+        fig = make_heatmap(
+            reason_table(visits, None if choice == "All shops" else choice),
+            f"Visits by reason and hour: {choice}",
+        )
+        st.pyplot(fig)
+        close(fig)
+
+        left, right = st.columns(2)
+        with left:
+            st.plotly_chart(
+                make_trend(
+                    monthly_sales(shown, by="reason"),
+                    "reason",
+                    "orders",
+                )
+            )
+        with right:
+            fig = make_violin(shown, "reason")
+            st.pyplot(fig)
+            close(fig)
 
 # 5. WHERE WE ARE  (provided)
 if where.open:
@@ -96,5 +127,45 @@ if where.open:
 #    d. st.dataframe of the top 10 scores (hide_index=True).
 if next_shop.open:
     with next_shop:
-        # TODO: steps 6a-6d
-        st.info("Where to open next: your tab goes here.")
+        member_counts = members_by_zip(customers)
+        demand = demand_by_zip(visits)
+
+        left, right = st.columns(2)
+        with left:
+            st.plotly_chart(
+                make_choropleth(
+                    zips,
+                    member_counts,
+                    "members",
+                    "Where members live",
+                    shops,
+                )
+            )
+        with right:
+            st.plotly_chart(
+                make_choropleth(
+                    zips,
+                    demand,
+                    "visits",
+                    "Where members are when they buy",
+                    shops,
+                )
+            )
+
+        scores = site_scores(demand, zips, shops)
+        st.plotly_chart(
+            make_choropleth(
+                zips,
+                scores,
+                "score",
+                "Recommended new shop location",
+                shops,
+            )
+        )
+        winner = scores.iloc[0]
+        st.success(
+            f"Open the next shop near ZIP {winner['zip']}: "
+            f"{winner['visits']} anchored visits, "
+            f"{winner['ours_km']:.2f} km from the nearest Salt City shop."
+        )
+        st.dataframe(scores.head(10), hide_index=True)
