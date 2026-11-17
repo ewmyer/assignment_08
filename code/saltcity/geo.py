@@ -53,8 +53,20 @@ def points_in_zips(frame: pd.DataFrame, lat: str, lon: str,
     - Return its `zip` column, re-indexed to `frame.index` (`.reindex(frame.index)`)
       so the missing rows come back as NaN.
     """
-    # TODO: your code here
-    pass
+    rows = frame.dropna(subset=[lat, lon])
+    points = gpd.GeoDataFrame(
+        rows,
+        geometry=gpd.points_from_xy(rows[lon], rows[lat]),
+        crs=LATLON_CRS,
+    )
+    joined = gpd.sjoin(
+        points,
+        zips[["zip", "geometry"]],
+        how="left",
+        predicate="within",
+    )
+    zip_by_index = joined["zip"][~joined.index.duplicated(keep="first")]
+    return zip_by_index.reindex(frame.index)
 
 
 def add_zips(customers: pd.DataFrame, zips: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -69,8 +81,10 @@ def add_zips(customers: pd.DataFrame, zips: gpd.GeoDataFrame) -> pd.DataFrame:
     - `home_zip` <- points_in_zips(the copy, "home_lat", "home_lon", zips);
       `work_zip` the same with the work columns.
     """
-    # TODO: your code here
-    pass
+    out = customers.copy()
+    out["home_zip"] = points_in_zips(out, "home_lat", "home_lon", zips)
+    out["work_zip"] = points_in_zips(out, "work_lat", "work_lon", zips)
+    return out
 
 
 def zip_centers(zips: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -83,5 +97,10 @@ def zip_centers(zips: gpd.GeoDataFrame) -> pd.DataFrame:
     - `.to_crs(LATLON_CRS)` — back to latitude/longitude;
     - build the DataFrame from `zips["zip"]`, the points' `.y` (lat) and `.x` (lon).
     """
-    # TODO: your code here
-    pass
+    meters = zips.to_crs(METERS_CRS)
+    points = meters.centroid.to_crs(LATLON_CRS)
+    return pd.DataFrame({
+        "zip": zips["zip"].to_numpy(),
+        "lat": points.y.to_numpy(),
+        "lon": points.x.to_numpy(),
+    })

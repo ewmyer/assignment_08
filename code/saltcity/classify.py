@@ -40,6 +40,10 @@ WORK_STARTS_BY = 10.0     # hour: weekday visits before this are the commute in
 WORK_ENDS_BY = 15.5       # hour: weekday visits before this are during work
 EVENING_ENDS_BY = 19.5    # hour: weekday visits before this are the commute home
 
+NEAR_WORK_KM = 2.5
+NEAR_HOME_KM = 2.5
+COMMUTE_DETOUR_KM = 3.0
+
 
 def classify_visits(visits: pd.DataFrame) -> pd.DataFrame:
     """`visits` (from add_features) with a new `reason` column: one of the five
@@ -53,13 +57,29 @@ def classify_visits(visits: pd.DataFrame) -> pd.DataFrame:
     result = visits.copy()
     weekday = result["weekday"]
     hour = result["hour"]
+    d_home = result["d_home"]
+    d_work = result["d_work"]
+    detour = result["detour"]
+    has_work = result["has_work"]
+
+    near_work = has_work & d_work.le(NEAR_WORK_KM)
+    near_home = d_home.le(NEAR_HOME_KM)
+    on_commute = has_work & detour.le(COMMUTE_DETOUR_KM)
+
     result["reason"] = np.select(
         [
-            weekday & (hour < WORK_STARTS_BY),
-            weekday & (hour < WORK_ENDS_BY),
-            weekday & (hour < EVENING_ENDS_BY),
+            weekday & (hour < WORK_STARTS_BY) & on_commute,
+            weekday & (hour >= WORK_ENDS_BY) & on_commute,
+            weekday & near_work & (hour < EVENING_ENDS_BY),
+            near_home & (~weekday | (hour >= EVENING_ENDS_BY) |
+                          (hour < WORK_STARTS_BY)),
         ],
-        [ON_THE_WAY_TO_WORK, DURING_WORK, ON_THE_WAY_HOME],
-        default=NEAR_HOME,
+        [
+            ON_THE_WAY_TO_WORK,
+            ON_THE_WAY_HOME,
+            DURING_WORK,
+            NEAR_HOME,
+        ],
+        default=OTHER,
     )
     return result
