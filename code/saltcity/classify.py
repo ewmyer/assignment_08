@@ -71,8 +71,7 @@ def classify_visits(visits: pd.DataFrame) -> pd.DataFrame:
             weekday & (hour < WORK_STARTS_BY) & on_commute,
             weekday & (hour >= WORK_ENDS_BY) & on_commute,
             weekday & near_work & (hour < EVENING_ENDS_BY),
-            near_home & (~weekday | (hour >= EVENING_ENDS_BY) |
-                          (hour < WORK_STARTS_BY)),
+            near_home,
         ],
         [
             ON_THE_WAY_TO_WORK,
